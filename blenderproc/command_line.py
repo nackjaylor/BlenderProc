@@ -39,7 +39,8 @@ def cli():
         },
         "pip": {
             'install': "Installs package in the Blender python environment",
-            'uninstall': "Uninstalls package in the Blender python environment"
+            'uninstall': "Uninstalls package in the Blender python environment",
+            'install_editable': "Installs the package in editable mode."
         },
         "quickstart": {
         }
@@ -84,7 +85,7 @@ def cli():
     for cmd, help_str in options['extract'].items():
         sub_parser_extract.add_parser(cmd, help=help_str, add_help=False)
 
-    parser_pip.add_argument('pip_mode', choices=options['pip'],
+    parser_pip.add_argument('pip_mode', choices=['install', 'uninstall', 'install_editable'],
                             help='\n'.join(f"{key}: {value}" for key, value in options["pip"].items()))
     parser_pip.add_argument('pip_packages', metavar='pip_packages', nargs='*',
                             help='A list of pip packages that should be installed/uninstalled. '
@@ -243,6 +244,13 @@ def cli():
                                    major_version=major_version,
                                    use_custom_package_path=not args.not_use_custom_package_path,
                                    install_default_packages=False)
+        elif args.pip_mode == "install_editable":
+
+            
+            # Call the new install_editable_package function
+            SetupUtility.install_editable_package(blender_path=blender_path, major_version=major_version, use_custom_package_path=not args.not_use_custom_package_path,
+                                   install_default_packages=False)
+
         elif args.pip_mode == "uninstall":
             SetupUtility.uninstall_pip_packages(args.pip_packages, blender_path=blender_path,
                                                 major_version=major_version)
