@@ -280,7 +280,9 @@ class SetupUtility:
         :param major_version: The major version string of the blender installation.
         """
         # Determine python and packages paths
-        python_bin, _, packages_import_path, _ = SetupUtility.determine_python_paths(blender_path, major_version)
+        python_bin, packages_path, packages_import_path, pre_python_package_path = SetupUtility.determine_python_paths(blender_path, major_version)
+
+        SetupUtility._ensure_pip(python_bin, packages_path, packages_import_path, pre_python_package_path)
 
         # Run pip uninstall
         # pylint: disable=consider-using-with
@@ -340,6 +342,76 @@ class SetupUtility:
                                            for ele in installed_packages_versions]
             SetupUtility.installed_packages = dict(zip(installed_packages_name, installed_packages_versions))
             SetupUtility.package_list_is_from_cache = False
+
+    @staticmethod
+    def install_editable_package(blender_path: Optional[str] = None, major_version: Optional[str] = None, use_custom_package_path: bool = True, install_default_packages: bool = True):
+        """
+        Installs the current package in editable mode.
+
+        :param blender_path: The path to the Blender installation.
+        :param major_version: The version number of the Blender installation.
+        """
+
+
+        # python_bin, packages_path, packages_import_path, pre_python_package_path = SetupUtility.determine_python_paths(
+        #     blender_path, major_version)
+
+        # required_packages = []
+        # # Only install general required packages on first setup_pip call
+        # if SetupUtility.installed_packages is None and install_default_packages:
+        #     required_packages += DefaultConfig.default_pip_packages
+
+
+        result = SetupUtility.determine_python_paths(blender_path, major_version)
+        python_bin, packages_path, packages_import_path, pre_python_package_path = result
+
+        # Init pip
+        SetupUtility._ensure_pip(python_bin, packages_path, packages_import_path, pre_python_package_path)
+
+        # # If the list of installed packages was read from cache
+        # if SetupUtility.package_list_is_from_cache:
+        #     # Check if there would be any pip package updates based on the cache
+        #     found_package_to_install = SetupUtility._pip_install_packages(required_packages, python_bin,
+        #                                                                   packages_path, dry_run=True)
+        #     # If yes, reload the list of installed packages
+        #     if found_package_to_install:
+        #         SetupUtility._ensure_pip(python_bin, packages_path, packages_import_path,
+        #                                  pre_python_package_path, force_update=True)
+
+        extra_args = []
+        if os.getenv("BLENDER_PROC_NO_PIP_CACHE", 'False').lower() in ('true', '1', 't'):
+                    extra_args.append("--no-cache-dir")
+        
+        if use_custom_package_path:
+                extra_args.extend(["--user"])
+
+        subprocess.Popen([python_bin, "-m", "pip", "install", "-e", ".", "--user", "--config-settings", "editable_mode=compat"],
+                                     env=dict(os.environ, PYTHONNOUSERSITE="0", PYTHONUSERBASE=packages_path)).wait()
+        
+        cache_path = os.path.join(packages_path, "installed_packages_cache_v2.json")
+        if  not os.path.exists(cache_path):
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(SetupUtility.installed_packages, f)
+
+        # If packages were installed, invalidate the module cache, s.t. the new modules can be imported right away
+        # if packages_were_installed:
+        importlib.invalidate_caches()
+
+        # Make sure to update the pip package list cache, if it does not exist or changes have been made
+        # cache_path = os.path.join(packages_path, "installed_packages_cache_v2.json")
+        # if packages_were_installed or not os.path.exists(cache_path):
+        #     with open(cache_path, "w", encoding="utf-8") as f:
+        #         json.dump(SetupUtility.installed_packages, f)
+
+        # # If packages were installed, invalidate the module cache, s.t. the new modules can be imported right away
+        # if packages_were_installed:
+        #     importlib.invalidate_caches()
+        # return packages_import_path
+
+        # Run pip install -e .
+        # subprocess.run([python_bin, "-m", "pip", "install", "-e", "."], env=dict(os.environ, PYTHONPATH=packages_import_path), check=True)
+        # subprocess.run([python_bin, "-m", "pip", "install", "-e", "~/code/testing/appearance-aware-traj-opt", "--user"],
+        #                              env=dict(os.environ, PYTHONNOUSERSITE="0", PYTHONUSERBASE=packages_import_path)).wait()
 
     @staticmethod
     def clean_installed_packages_cache(blender_path, major_version):
